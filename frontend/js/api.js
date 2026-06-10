@@ -1,4 +1,4 @@
-const API_BASE_URL = "https://ai-study-planner-t302.onrender.com";
+const API_BASE_URL = "https://ai-study-planner-t302.onrender.com/api";
 
 const api = {
   async request(endpoint, options = {}) {
