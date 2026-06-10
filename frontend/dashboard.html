@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - AI Study Planner</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="dashboard-header">
+            <div>
+                <h1 style="font-size: 1.5rem; font-weight: 700; color: var(--primary-color);">AI Study Planner</h1>
+            </div>
+            <nav class="nav-links">
+                <a href="dashboard.html" class="active">Dashboard</a>
+                <a href="subjects.html">Subjects</a>
+                <a href="#" id="logout-btn">Logout</a>
+            </nav>
+        </header>
+
+        <section class="ai-section">
+            <h2>AI Study Plan Generator</h2>
+            <p style="margin-bottom: 1rem; opacity: 0.9;">Tell AI what you want to achieve, and it will help you create a detailed study plan.</p>
+            <div class="form-group">
+                <textarea id="ai-prompt" rows="3" placeholder="e.g. I want to learn Data Structures and Algorithms in 4 weeks for a coding interview."></textarea>
+            </div>
+            <button id="generate-ai-plan" class="btn" style="background: white; color: var(--primary-color);">Generate with AI</button>
+            <div id="ai-result" class="hidden" style="margin-top: 1.5rem; background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.2);">
+                <h4 style="margin-bottom: 0.5rem;">AI Suggestions:</h4>
+                <div id="ai-output-text" style="font-size: 0.875rem; white-space: pre-wrap;"></div>
+            </div>
+        </section>
+
+        <div class="dashboard-header">
+            <h2>My Study Plans</h2>
+            <button class="btn btn-primary" id="open-new-plan-modal">+ New Plan</button>
+        </div>
+
+        <div class="grid" id="plans-grid">
+            <!-- Plans will be loaded here -->
+        </div>
+    </div>
+
+    <!-- New Plan Modal -->
+    <div class="modal" id="plan-modal">
+        <div class="modal-content">
+            <h2 style="margin-bottom: 1.5rem;">Create New Study Plan</h2>
+            <form id="plan-form">
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" id="plan-title" required placeholder="e.g. Finals Week Prep">
+                </div>
+                <div class="form-group">
+                    <label>Goal</label>
+                    <textarea id="plan-goal" required placeholder="What do you want to achieve?"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Subject (Optional)</label>
+                    <select id="plan-subject">
+                        <option value="">Select a subject</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">Create Plan</button>
+                    <button type="button" class="btn btn-outline" id="close-plan-modal" style="flex: 1;">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        // Check Auth
+        if (!localStorage.getItem('token')) window.location.href = 'index.html';
+
+        const plansGrid = document.getElementById('plans-grid');
+        const planModal = document.getElementById('plan-modal');
+        const planSubjectSelect = document.getElementById('plan-subject');
+
+        async function loadDashboard() {
+            try {
+                const [plans, subjects] = await Promise.all([
+                    api.getPlans(),
+                    api.getSubjects()
+                ]);
+
+                // Fill subjects dropdown
+                planSubjectSelect.innerHTML = '<option value="">Select a subject</option>';
+                subjects.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.id;
+                    opt.textContent = s.name;
+                    planSubjectSelect.appendChild(opt);
+                });
+
+                // Render plans
+                plansGrid.innerHTML = plans.length ? '' : '<p style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 3rem;">No study plans yet. Create your first one!</p>';
+                plans.forEach(plan => {
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    card.innerHTML = `
+                        <h3>${plan.title}</h3>
+                        <p>${plan.goal}</p>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+                            <span class="status-badge status-progress">${plan.subject ? plan.subject.name : 'No Subject'}</span>
+                            <a href="plan-details.html?id=${plan.id}" class="btn btn-outline" style="padding: 0.4rem 0.8rem;">View Details</a>
+                        </div>
+                    `;
+                    plansGrid.appendChild(card);
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        // Modal Controls
+        document.getElementById('open-new-plan-modal').onclick = () => planModal.style.display = 'flex';
+        document.getElementById('close-plan-modal').onclick = () => planModal.style.display = 'none';
+
+        document.getElementById('plan-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const data = {
+                title: document.getElementById('plan-title').value,
+                goal: document.getElementById('plan-goal').value,
+                subjectId: document.getElementById('plan-subject').value || null
+            };
+            try {
+                await api.createPlan(data);
+                planModal.style.display = 'none';
+                loadDashboard();
+            } catch (err) { alert(err.message); }
+        };
+
+        // AI Generation
+        document.getElementById('generate-ai-plan').onclick = async () => {
+            const prompt = document.getElementById('ai-prompt').value;
+            if (!prompt) return alert('Please enter a prompt');
+            
+            const btn = document.getElementById('generate-ai-plan');
+            btn.textContent = 'Generating...';
+            btn.disabled = true;
+
+            try {
+                const data = await api.generatePlan(prompt);
+                document.getElementById('ai-result').classList.remove('hidden');
+                document.getElementById('ai-output-text').textContent = data.generatedPlan;
+            } catch (err) {
+                alert(err.message);
+            } finally {
+                btn.textContent = 'Generate with AI';
+                btn.disabled = false;
+            }
+        };
+
+        document.getElementById('logout-btn').onclick = (e) => {
+            e.preventDefault();
+            localStorage.clear();
+            window.location.href = 'index.html';
+        };
+
+        loadDashboard();
+    </script>
+</body>
+</html>

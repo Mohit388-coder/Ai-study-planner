@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plan Details - AI Study Planner</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="dashboard-header">
+            <div>
+                <h1 style="font-size: 1.5rem; font-weight: 700; color: var(--primary-color);">AI Study Planner</h1>
+            </div>
+            <nav class="nav-links">
+                <a href="dashboard.html">Dashboard</a>
+                <a href="subjects.html">Subjects</a>
+                <a href="#" id="logout-btn">Logout</a>
+            </nav>
+        </header>
+
+        <div id="plan-info" style="margin-bottom: 2rem;">
+            <!-- Plan title and goal will be loaded here -->
+        </div>
+
+        <section class="ai-section" style="margin-bottom: 2rem;">
+            <h3>AI Plan Optimizer & Task Suggester</h3>
+            <p style="margin-bottom: 1rem; opacity: 0.9;">Let AI suggest tasks or optimize your current plan based on your needs.</p>
+            <div class="form-group">
+                <textarea id="ai-task-prompt" rows="2" placeholder="e.g. Suggest some specific practice problems for this plan."></textarea>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button id="ai-suggest-tasks" class="btn" style="background: white; color: var(--primary-color); flex: 1;">Suggest Tasks</button>
+                <button id="ai-optimize-plan" class="btn" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid white; flex: 1;">Optimize Plan</button>
+            </div>
+            <div id="ai-detail-result" class="hidden" style="margin-top: 1.5rem; background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.2);">
+                <h4 id="ai-detail-title" style="margin-bottom: 0.5rem;">AI Output:</h4>
+                <div id="ai-detail-text" style="font-size: 0.875rem; white-space: pre-wrap;"></div>
+            </div>
+        </section>
+
+        <div class="dashboard-header">
+            <h2>Tasks</h2>
+            <button class="btn btn-primary" id="open-task-modal">+ Add Task</button>
+        </div>
+
+        <div id="tasks-list" class="card" style="padding: 0;">
+            <!-- Tasks will be loaded here -->
+        </div>
+    </div>
+
+    <!-- Task Modal -->
+    <div class="modal" id="task-modal">
+        <div class="modal-content">
+            <h2 id="task-modal-title" style="margin-bottom: 1.5rem;">Add New Task</h2>
+            <form id="task-form">
+                <input type="hidden" id="task-id">
+                <div class="form-group">
+                    <label>Task Title</label>
+                    <input type="text" id="task-title" required placeholder="e.g. Read Chapter 1">
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="task-desc" placeholder="Details about the task..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Priority</label>
+                    <select id="task-priority">
+                        <option value="1">Low</option>
+                        <option value="2">Medium</option>
+                        <option value="3">High</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="task-status">
+                        <option value="PENDING">Pending</option>
+                        <option value="IN_PROGRESS">In Progress</option>
+                        <option value="COMPLETED">Completed</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">Save Task</button>
+                    <button type="button" class="btn btn-outline" id="close-task-modal" style="flex: 1;">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        if (!localStorage.getItem('token')) window.location.href = 'index.html';
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const planId = urlParams.get('id');
+        if (!planId) window.location.href = 'dashboard.html';
+
+        const tasksList = document.getElementById('tasks-list');
+        const taskModal = document.getElementById('task-modal');
+        const taskForm = document.getElementById('task-form');
+
+        async function loadPlanDetails() {
+            try {
+                const plan = await api.getPlan(planId);
+                document.getElementById('plan-info').innerHTML = `
+                    <h1 style="font-size: 2rem; margin-bottom: 0.5rem;">${plan.title}</h1>
+                    <p style="color: var(--text-muted); font-size: 1.1rem;">${plan.goal}</p>
+                    ${plan.subject ? `<span class="status-badge status-progress" style="margin-top: 0.5rem; display: inline-block;">${plan.subject.name}</span>` : ''}
+                `;
+
+                renderTasks(plan.tasks);
+            } catch (err) { console.error(err); }
+        }
+
+        function renderTasks(tasks) {
+            tasksList.innerHTML = tasks.length ? '' : '<p style="text-align: center; color: var(--text-muted); padding: 3rem;">No tasks yet. Add one to get started!</p>';
+            
+            tasks.sort((a, b) => b.priority - a.priority).forEach(t => {
+                const statusClass = t.status === 'PENDING' ? 'status-pending' : (t.status === 'IN_PROGRESS' ? 'status-progress' : 'status-completed');
+                const item = document.createElement('div');
+                item.className = 'task-item';
+                item.innerHTML = `
+                    <div class="task-info">
+                        <div>
+                            <div style="font-weight: 600;">${t.title}</div>
+                            <div style="font-size: 0.8rem; color: var(--text-muted);">${t.description || ''}</div>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <span class="status-badge ${statusClass}">${t.status}</span>
+                        <button class="btn btn-outline" onclick="editTask('${t.id}', '${t.title}', '${t.description || ''}', '${t.priority}', '${t.status}')" style="padding: 0.3rem 0.6rem;">Edit</button>
+                        <button class="btn btn-danger" onclick="deleteTask('${t.id}')" style="padding: 0.3rem 0.6rem;">×</button>
+                    </div>
+                `;
+                tasksList.appendChild(item);
+            });
+        }
+
+        document.getElementById('open-task-modal').onclick = () => {
+            document.getElementById('task-modal-title').textContent = 'Add New Task';
+            taskForm.reset();
+            document.getElementById('task-id').value = '';
+            taskModal.style.display = 'flex';
+        };
+
+        document.getElementById('close-task-modal').onclick = () => taskModal.style.display = 'none';
+
+        taskForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('task-id').value;
+            const data = {
+                title: document.getElementById('task-title').value,
+                description: document.getElementById('task-desc').value,
+                priority: parseInt(document.getElementById('task-priority').value),
+                status: document.getElementById('task-status').value
+            };
+
+            try {
+                if (id) await api.updateTask(id, data);
+                else await api.createTask(planId, data);
+                taskModal.style.display = 'none';
+                loadPlanDetails();
+            } catch (err) { alert(err.message); }
+        };
+
+        window.editTask = (id, title, desc, priority, status) => {
+            document.getElementById('task-modal-title').textContent = 'Edit Task';
+            document.getElementById('task-id').value = id;
+            document.getElementById('task-title').value = title;
+            document.getElementById('task-desc').value = desc;
+            document.getElementById('task-priority').value = priority;
+            document.getElementById('task-status').value = status;
+            taskModal.style.display = 'flex';
+        };
+
+        window.deleteTask = async (id) => {
+            if (confirm('Delete this task?')) {
+                try {
+                    await api.deleteTask(id);
+                    loadPlanDetails();
+                } catch (err) { alert(err.message); }
+            }
+        };
+
+        // AI Actions
+        document.getElementById('ai-suggest-tasks').onclick = async () => {
+            const prompt = document.getElementById('ai-task-prompt').value;
+            const btn = document.getElementById('ai-suggest-tasks');
+            btn.textContent = 'Thinking...';
+            try {
+                const data = await api.suggestTasks(planId, prompt || 'Suggest some tasks');
+                document.getElementById('ai-detail-result').classList.remove('hidden');
+                document.getElementById('ai-detail-title').textContent = 'AI Suggested Tasks:';
+                document.getElementById('ai-detail-text').textContent = data.suggestedTasks;
+            } catch (err) { alert(err.message); }
+            finally { btn.textContent = 'Suggest Tasks'; }
+        };
+
+        document.getElementById('ai-optimize-plan').onclick = async () => {
+            const prompt = document.getElementById('ai-task-prompt').value;
+            const btn = document.getElementById('ai-optimize-plan');
+            btn.textContent = 'Thinking...';
+            try {
+                const data = await api.optimizePlan(planId, prompt || 'Optimize this plan');
+                document.getElementById('ai-detail-result').classList.remove('hidden');
+                document.getElementById('ai-detail-title').textContent = 'AI Optimization Suggestions:';
+                document.getElementById('ai-detail-text').textContent = data.optimizedPlan;
+            } catch (err) { alert(err.message); }
+            finally { btn.textContent = 'Optimize Plan'; }
+        };
+
+        document.getElementById('logout-btn').onclick = (e) => {
+            e.preventDefault();
+            localStorage.clear();
+            window.location.href = 'index.html';
+        };
+
+        loadPlanDetails();
+    </script>
+</body>
+</html>
